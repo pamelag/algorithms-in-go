@@ -1,0 +1,85 @@
+package main
+
+import (
+	"fmt"
+	"math/big"
+	//"time"
+)
+
+const (
+	numOfJobs    int = 1000000 //1000000000
+	numOfWorkers int = 100     //1000
+
+)
+
+func worker(id int, jobs <-chan int, results chan<- int, filled chan<- bool) {
+	for j := range jobs {
+		go func(j int) {
+			switch j % 3 {
+			case 0:
+				j = j * 1
+			case 1:
+				j = j * 2
+				results <- j * 2
+			case 2:
+				results <- j * 3
+				j = j * 3
+			}
+			filled <- true
+		}(j)
+	}
+}
+
+func main() {
+	jobs := make(chan int)
+	results := make(chan int)
+	done := make(chan bool)
+	filled := make(chan bool)
+
+	for i := 1; i <= numOfJobs; i++ {
+		go func(i int) {
+			if i%2 == 0 {
+				i += 99
+			}
+			jobs <- i
+			done <- true
+		}(i)
+	}
+
+	go func() {
+		for i := 1; i <= numOfJobs; i++ {
+			<-done
+		}
+		close(jobs)
+		close(done)
+	}()
+
+	jobs2 := []int{}
+	for w := 1; w < numOfWorkers; w++ {
+		jobs2 = append(jobs2, w)
+	}
+
+	for i, w := range jobs2 {
+		go worker(w, jobs, results, filled)
+		i = i + 1
+	}
+
+	go func() {
+		for i := 1; i <= numOfJobs; i++ {
+			<-filled
+		}
+		close(results)
+		close(filled)
+	}()
+
+	//var sum *big.Int
+	sum := big.NewInt(0)
+
+	for r := range results {
+		//sum += uint64(r)
+		sum.Add(sum, big.NewInt(int64(r)))
+	}
+
+	fmt.Println(sum)
+
+}
